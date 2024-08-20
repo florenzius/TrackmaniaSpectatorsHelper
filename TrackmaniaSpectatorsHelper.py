@@ -2,8 +2,8 @@ bl_info = {
     "name": "Trackmania Spectators Helper",
     "description": "This plugin quickly exports the positions and rotations of 'Hair Particle system' instances, in order to be used in Trackmania to define spectator positions on custom items edited with E++.",
     "author": "florenzius (and ChatGPT lol)",
-    "version": (1, 1),
-    "blender": (4, 0, 0),
+    "version": (2, 0),
+    "blender": (4, 3, 0),
     "warning": "Create particle system on your object (select 'Hair'!), then select it in Object mode. You will find the export options in the N-Menu's 'Tools' tab.",
     "category": "Object",
 }
@@ -107,12 +107,18 @@ class OBJECT_OT_export_particle_positions(bpy.types.Operator):
 
         print(f"Writing to file: {file_path}")
 
+        # Check, ob appended werden soll
+        mode = 'a' if context.scene.append_to_file else 'w'
+
         # Open file writer
-        with open(file_path, 'w') as file:
+        with open(file_path, mode) as file:
             # Check whether table head is wanted
-            if context.scene.add_column_names:
+            if context.scene.add_column_names and mode == 'w':
                 # Create table head
                 file.write("quatW,quatX,quatY,quatZ,posX,posZ,posY\n")
+
+            if mode == 'a':
+                file.write("\n")
 
             # Sort by z-axis values ascending
             particles_sorted = sorted(particles, key=lambda particle: particle.location.z)
@@ -164,6 +170,14 @@ class OBJECT_OT_export_particle_positions(bpy.types.Operator):
             for entry in particle_data:
                 file.write(f"{entry[0]},{entry[1]},{entry[2]},{entry[3]},{entry[4]},{entry[5]},{entry[6]}\n")
 
+            # Remove empty lines in entire file after writing data
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as file:
+                    lines = file.readlines()
+                lines = [line for line in lines if line.strip() != '']
+                with open(file_path, 'w') as file:
+                    file.writelines(lines)
+
         self.report({'INFO'}, f"Spectator positions exported to {file_path}.")
         print("Export successful.")
 
@@ -194,6 +208,7 @@ class OBJECT_PT_particle_position_exporter_panel(bpy.types.Panel):
 
         # Checkboxes extra
         layout.prop(context.scene, "add_column_names", text="Add column names")
+        layout.prop(context.scene, "append_to_file", text="Append to existing file")
         layout.prop(context.scene, "open_folder", text="Open folder after export")
         layout.prop(context.scene, "open_file", text="Open file after export")
 
@@ -245,6 +260,9 @@ def register():
     bpy.types.Scene.open_folder = bpy.props.BoolProperty(name="Open folder after export")
     bpy.types.Scene.open_file = bpy.props.BoolProperty(name="Open file after export")
 
+    bpy.types.Scene.append_to_file = bpy.props.BoolProperty(
+    name="Append to existing file", default=False)
+
 def unregister():
     bpy.utils.unregister_class(OBJECT_OT_export_particle_positions)
     bpy.utils.unregister_class(OBJECT_OT_set_export_path)
@@ -264,6 +282,8 @@ def unregister():
     del bpy.types.Scene.add_column_names
     del bpy.types.Scene.open_folder
     del bpy.types.Scene.open_file
+
+    del bpy.types.Scene.append_to_file
 
 if __name__ == "__main__":
     register()
